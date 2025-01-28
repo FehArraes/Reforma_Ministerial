@@ -4,6 +4,10 @@ import feedparser
 from datetime import datetime, timedelta
 from bs4 import BeautifulSoup
 import re
+import pytz  # Para ajuste de fuso horário
+
+# Fuso horário do Brasil
+BRASIL_TZ = pytz.timezone("America/Sao_Paulo")
 
 # Configuração da página no Streamlit
 st.set_page_config(page_title="Monitor de Reforma Ministerial", layout="wide")
@@ -15,11 +19,11 @@ GOOGLE_NEWS_RSS = "https://news.google.com/rss/search?q=reforma+ministerial&hl=p
 if "news_history" not in st.session_state:
     st.session_state.news_history = []
 
-# Função para converter datas relativas para absolutas
+# 🔹 Converter tempo relativo para absoluto
 def convert_relative_time(relative_time):
-    now = datetime.now()
-    
-    # Expressões regulares para detectar tempo relativo
+    now = datetime.now(BRASIL_TZ)
+
+    # Identificar "minutos atrás", "horas atrás", etc.
     match = re.search(r"(\d+)\s+min", relative_time)
     if match:
         return now - timedelta(minutes=int(match.group(1)))
@@ -37,7 +41,7 @@ def convert_relative_time(relative_time):
 
     return None  # Caso não seja uma data relativa
 
-# Função para buscar a data diretamente do site original da notícia
+# 🔹 Função para buscar a data diretamente do site da notícia original
 def fetch_real_publication_date(news_url):
     try:
         response = requests.get(news_url, timeout=5)
@@ -46,8 +50,9 @@ def fetch_real_publication_date(news_url):
 
             # Buscar elementos comuns que contêm a data
             date_patterns = [
-                {"tag": "time", "attr": "datetime"},  # Formato ISO padrão
+                {"tag": "time", "attr": "datetime"},  # Padrão ISO
                 {"tag": "meta", "attr": "content", "name": "article:published_time"},
+                {"tag": "meta", "attr": "content", "name": "datePublished"},
                 {"tag": "span", "class": "publish-date"},
                 {"tag": "div", "class": "date"},
             ]
@@ -61,7 +66,8 @@ def fetch_real_publication_date(news_url):
                 if date_element and date_element.has_attr(pattern["attr"]):
                     raw_date = date_element[pattern["attr"]]
                     try:
-                        return datetime.strptime(raw_date, "%Y-%m-%dT%H:%M:%S")
+                        # Converter para datetime
+                        return datetime.strptime(raw_date, "%Y-%m-%dT%H:%M:%S").replace(tzinfo=pytz.utc).astimezone(BRASIL_TZ)
                     except ValueError:
                         continue  # Se falhar, tenta outro formato
 
@@ -69,13 +75,12 @@ def fetch_real_publication_date(news_url):
     except Exception:
         return None  # Se der erro ao acessar, retorna None
 
-# Função para buscar notícias do RSS do Google News
+# 🔹 Buscar notícias do RSS do Google News
 def fetch_google_news_rss():
     feed = feedparser.parse(GOOGLE_NEWS_RSS)
     results = []
 
     for entry in feed.entries:
-        # Corrigir a data de publicação
         published_at = None
         published_str = "Data não disponível"
 
@@ -87,20 +92,20 @@ def fetch_google_news_rss():
                 published_at = converted_date
             else:
                 try:
-                    published_at = datetime.strptime(entry.published, "%a, %d %b %Y %H:%M:%S %Z")
+                    published_at = datetime.strptime(entry.published, "%a, %d %b %Y %H:%M:%S %Z").replace(tzinfo=pytz.utc).astimezone(BRASIL_TZ)
                 except ValueError:
-                    published_str = entry.published  # Se não for possível converter, manter o original
+                    published_str = entry.published  # Se não for possível converter, mantém o original
 
             if published_at:
                 published_str = published_at.strftime("%d/%m/%Y %H:%M")
 
-        # Tentar buscar a data correta no site original
+        # 🔍 Buscar a data correta no site original
         real_date = fetch_real_publication_date(entry.link)
         if real_date:
             published_at = real_date
             published_str = real_date.strftime("%d/%m/%Y %H:%M")
 
-        # Corrigir a descrição removendo HTML
+        # 📌 Corrigir a descrição removendo HTML
         raw_snippet = entry.summary
         clean_snippet = BeautifulSoup(raw_snippet, "html.parser").get_text()
 
@@ -127,7 +132,7 @@ def fetch_google_news_rss():
 
     return st.session_state.news_history
 
-# Exibir notícias no Streamlit
+# 🔹 Exibir notícias no Streamlit
 def display_news(articles):
     for article in articles:
         st.markdown(f"### {article['title']}")
@@ -137,18 +142,18 @@ def display_news(articles):
         st.write(f"🔗 [Leia mais]({article['link']})")
         st.markdown("---")
 
-# Sidebar para configurações
+# 🔹 Sidebar para configurações
 st.sidebar.header("Configurações")
 refresh_rate = st.sidebar.slider("Taxa de atualização (segundos)", 60, 600, 120)
 
-# Título principal
+# 🔹 Título principal
 st.title("📢 Monitor de Notícias: Reforma Ministerial")
 st.info(f"Monitorando notícias diretamente do **Google Notícias** via RSS.")
 
-# Buscar notícias e atualizar histórico
+# 🔹 Buscar notícias e atualizar histórico
 articles = fetch_google_news_rss()
 
-# Exibir histórico completo (já ordenado)
+# 🔹 Exibir histórico completo (já ordenado)
 display_news(articles)
 
 
