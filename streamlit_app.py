@@ -6,7 +6,7 @@ from bs4 import BeautifulSoup
 import re
 import pytz
 
-# 🔹 Fuso horário do Brasil
+# 🔹 Definir fuso horário do Brasil
 BRASIL_TZ = pytz.timezone("America/Sao_Paulo")
 
 # 🔹 Configuração da página no Streamlit
@@ -76,6 +76,7 @@ def fetch_google_news_rss():
                     relative_str = entry.published
 
             if published_at:
+                published_at = published_at.replace(tzinfo=BRASIL_TZ)  # 🔹 Garantir que a data tem fuso horário
                 relative_str = format_relative_time(published_at)
 
         raw_snippet = entry.summary
@@ -99,10 +100,10 @@ def fetch_google_news_rss():
     if not isinstance(st.session_state.news_history, list):
         st.session_state.news_history = []
 
-    # ✅ Correção: Garantir que cada item tem `publishedAt_datetime`
+    # ✅ Correção: Garantir que cada item tem `publishedAt_datetime` e está no formato offset-aware
     for news in st.session_state.news_history:
         if "publishedAt_datetime" not in news:
-            news["publishedAt_datetime"] = datetime.min
+            news["publishedAt_datetime"] = datetime.min.replace(tzinfo=BRASIL_TZ)  # 🔹 Corrigir erro offset-naive
 
     # ✅ Correção: Ordenar corretamente os mais recentes primeiro
     try:
