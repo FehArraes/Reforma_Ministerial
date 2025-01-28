@@ -21,15 +21,26 @@ def fetch_google_news_rss():
 
     for entry in feed.entries:
         # Corrigir a data de publicação
-        published_at = None  # Inicializa como None para evitar erro na ordenação
+        published_at = None
         published_str = "Data não disponível"
 
         if hasattr(entry, "published"):
             try:
-                published_at = datetime.strptime(entry.published, "%a, %d %b %Y %H:%M:%S %Z")
-                published_str = published_at.strftime("%d/%m/%Y %H:%M")
-            except ValueError:
-                published_str = entry.published  # Mantém o valor original se não puder converter
+                # Tentar diferentes formatos de data
+                possible_formats = [
+                    "%a, %d %b %Y %H:%M:%S %Z",  # Formato padrão do Google News
+                    "%Y-%m-%dT%H:%M:%SZ",       # Formato ISO
+                    "%d/%m/%Y %H:%M",           # Formato já convertido
+                ]
+                for fmt in possible_formats:
+                    try:
+                        published_at = datetime.strptime(entry.published, fmt)
+                        published_str = published_at.strftime("%d/%m/%Y %H:%M")
+                        break
+                    except ValueError:
+                        continue
+            except Exception:
+                published_str = entry.published  # Se der erro, mantém o valor original
 
         # Corrigir a descrição removendo HTML
         raw_snippet = entry.summary
@@ -63,7 +74,7 @@ def fetch_google_news_rss():
 def display_news(articles):
     for article in articles:
         st.markdown(f"### {article['title']}")
-        st.write(article["snippet"])
+        st.write(f"📰 {article['snippet']}")
         st.write(f"📌 **Fonte:** {article['source']}")
         st.write(f"🕒 **Publicado em:** {article['publishedAt']}")
         st.write(f"🔗 [Leia mais]({article['link']})")
