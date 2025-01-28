@@ -7,7 +7,7 @@ st.set_page_config(page_title="Monitor de Reforma Ministerial", layout="wide")
 
 # 🗝️ Chaves da API do Google
 GOOGLE_API_KEY = "AIzaSyAwPi4OhimTFHKiHtb2NOAIgRicmwco8Y0"  # Substitua pela sua API Key
-SEARCH_ENGINE_ID = "SEU_SEARCH_ENGINE_ID_AQUI"  # Substitua pelo seu Search Engine ID
+SEARCH_ENGINE_ID = "f00a0d98e7d4c4cb9"  # Substitua pelo seu Search Engine ID
 
 # 📰 Termo de busca
 SEARCH_TERM = "reforma ministerial"
