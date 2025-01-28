@@ -95,5 +95,3 @@ articles = fetch_google_news_rss()
 display_news(articles)
 
 
-
-
