@@ -9,8 +9,8 @@ st.set_page_config(page_title="Monitor de Reforma Ministerial", layout="wide")
 GOOGLE_API_KEY = "AIzaSyAwPi4OhimTFHKiHtb2NOAIgRicmwco8Y0"  # Substitua pela sua API Key
 SEARCH_ENGINE_ID = "f00a0d98e7d4c4cb9"  # Substitua pelo seu Search Engine ID
 
-# 🔍 Filtra apenas notícias reais do Google News
-SEARCH_TERM = "reforma ministerial site:news.google.com"
+# 🔍 Busca apenas notícias sobre "Reforma Ministerial" no título
+SEARCH_TERM = 'intitle:"reforma ministerial" site:news.google.com'
 
 # Inicializar histórico se ainda não existir
 if "news_history" not in st.session_state:
@@ -64,8 +64,7 @@ st.info(f"Monitorando notícias relacionadas a **'{SEARCH_TERM}'** via Google Ne
 # Buscar notícias e atualizar histórico
 articles = fetch_google_news(GOOGLE_API_KEY, SEARCH_ENGINE_ID, SEARCH_TERM)
 
-# Exibir histórico completo
-display_news(st.session_state.news_history)
+# Exibir histórico 
 
 
 
