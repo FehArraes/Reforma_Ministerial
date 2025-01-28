@@ -21,12 +21,15 @@ def fetch_google_news_rss():
 
     for entry in feed.entries:
         # Corrigir a data de publicação
-        published_at = "Data não disponível"
+        published_at = None  # Inicializa como None para evitar erro na ordenação
+        published_str = "Data não disponível"
+
         if hasattr(entry, "published"):
             try:
-                published_at = datetime.strptime(entry.published, "%a, %d %b %Y %H:%M:%S %Z").strftime("%d/%m/%Y %H:%M")
+                published_at = datetime.strptime(entry.published, "%a, %d %b %Y %H:%M:%S %Z")
+                published_str = published_at.strftime("%d/%m/%Y %H:%M")
             except ValueError:
-                published_at = entry.published  # Caso o formato seja diferente
+                published_str = entry.published  # Mantém o valor original se não puder converter
 
         # Corrigir a descrição removendo HTML
         raw_snippet = entry.summary
@@ -37,14 +40,21 @@ def fetch_google_news_rss():
             "link": entry.link,
             "snippet": clean_snippet,  # Agora a descrição é apenas texto puro
             "source": entry.source.title if "source" in entry else "Google News",
-            "publishedAt": published_at,
+            "publishedAt": published_str,
+            "publishedAt_datetime": published_at,  # Salva a data como objeto datetime para ordenação
         }
 
         # Evitar duplicatas no histórico
         if result["link"] not in [news["link"] for news in st.session_state.news_history]:
             st.session_state.news_history.append(result)
 
-    return results
+    # Ordenar as notícias da mais recente para a mais antiga
+    st.session_state.news_history.sort(
+        key=lambda x: x["publishedAt_datetime"] if x["publishedAt_datetime"] else datetime.min,
+        reverse=True
+    )
+
+    return st.session_state.news_history
 
 # Exibir notícias no Streamlit
 def display_news(articles):
@@ -67,8 +77,9 @@ st.info(f"Monitorando notícias diretamente do **Google Notícias** via RSS.")
 # Buscar notícias e atualizar histórico
 articles = fetch_google_news_rss()
 
-# Exibir histórico completo
-display_news(st.session_state.news_history)
+# Exibir histórico completo (já ordenado)
+display_news(articles)
+
 
 
 
