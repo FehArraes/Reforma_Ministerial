@@ -2,60 +2,63 @@ import streamlit as st
 import requests
 from datetime import datetime
 
-# Configurações da página
+# Configuração da página no Streamlit
 st.set_page_config(page_title="Monitor de Reforma Ministerial", layout="wide")
 
-# Chave da API NewsAPI
-API_KEY = "f3df2dfd4d7d4f85b1b15290491e4604"
+# 🗝️ Chaves da API do Google
+GOOGLE_API_KEY = "AIzaSyAwPi4OhimTFHKiHtb2NOAIgRicmwco8Y0"  # Substitua pela sua API Key
+SEARCH_ENGINE_ID = "SEU_SEARCH_ENGINE_ID_AQUI"  # Substitua pelo seu Search Engine ID
 
-# Termos fixos a serem monitorados
-SEARCH_TERM = "reforma ministerial OR articulação ministerial OR reforma do governo"
+# 📰 Termo de busca
+SEARCH_TERM = "reforma ministerial"
 
-# Função para buscar notícias da API
-def fetch_news(api_key, query, page_size=100):
-    url = f"https://newsapi.org/v2/everything?q={query}&pageSize={page_size}&apiKey={api_key}"
+# Função para buscar notícias no Google Custom Search
+def fetch_google_news(api_key, search_engine_id, query, num_results=10):
+    url = f"https://www.googleapis.com/customsearch/v1?q={query}&cx={search_engine_id}&key={api_key}&num={num_results}"
     response = requests.get(url)
+    
     if response.status_code == 200:
         data = response.json()
-        articles = data.get("articles", [])
-        # Ordenar artigos do mais recente para o mais antigo
-        articles = sorted(
-            articles,
-            key=lambda x: datetime.strptime(x["publishedAt"], "%Y-%m-%dT%H:%M:%SZ"),
-            reverse=True
-        )
-        return articles
+        results = []
+        
+        for item in data.get("items", []):
+            result = {
+                "title": item["title"],
+                "link": item["link"],
+                "snippet": item.get("snippet", "Sem descrição disponível"),
+                "source": item["displayLink"],
+                "publishedAt": datetime.now().strftime("%d/%m/%Y %H:%M")  # O Google não retorna a data da publicação
+            }
+            results.append(result)
+        
+        return results
     else:
         st.error(f"Erro ao buscar notícias: {response.status_code}")
         return []
 
 # Exibir notícias no Streamlit
-def display_news(articles, search_term):
+def display_news(articles):
     for article in articles:
-        title = article["title"] or ""
-        description = article["description"] or ""
-        
-        # Filtrar notícias que contenham o termo no título ou descrição
-        if any(term.lower() in title.lower() or term.lower() in description.lower() for term in search_term.split(" OR ")):
-            st.markdown(f"### {title}")
-            st.write(description or "Sem descrição disponível")
-            st.write(f"Fonte: {article['source']['name']}")
-            st.write(f"[Leia mais]({article['url']})")
-            st.write("Publicado em:", datetime.strptime(article["publishedAt"], "%Y-%m-%dT%H:%M:%SZ").strftime("%d/%m/%Y %H:%M"))
-            st.markdown("---")
+        st.markdown(f"### {article['title']}")
+        st.write(article["snippet"])
+        st.write(f"Fonte: {article['source']}")
+        st.write(f"[Leia mais]({article['link']})")
+        st.write("Publicado em:", article["publishedAt"])
+        st.markdown("---")
 
 # Sidebar para configurações
 st.sidebar.header("Configurações")
 refresh_rate = st.sidebar.slider("Taxa de atualização (segundos)", 10, 300, 60)
 
 # Título principal
-st.title("Monitor de Notícias: Reforma Ministerial")
-st.info(f"Monitorando notícias relacionadas a **'{SEARCH_TERM}'**...")
+st.title("Monitor de Notícias: Reforma Ministerial 📰")
+st.info(f"Monitorando notícias relacionadas a **'{SEARCH_TERM}'** via Google News.")
 
 # Buscar notícias e exibir
-articles = fetch_news(API_KEY, SEARCH_TERM)
+articles = fetch_google_news(GOOGLE_API_KEY, SEARCH_ENGINE_ID, SEARCH_TERM)
 if articles:
-    display_news(articles, SEARCH_TERM)
+    display_news(articles)
 else:
     st.warning("Nenhuma notícia encontrada para os termos especificados.")
+
 
