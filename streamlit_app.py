@@ -2,6 +2,7 @@ import streamlit as st
 import requests
 import feedparser
 from datetime import datetime
+from bs4 import BeautifulSoup
 
 # Configuração da página no Streamlit
 st.set_page_config(page_title="Monitor de Reforma Ministerial", layout="wide")
@@ -19,12 +20,24 @@ def fetch_google_news_rss():
     results = []
 
     for entry in feed.entries:
+        # Corrigir a data de publicação
+        published_at = "Data não disponível"
+        if hasattr(entry, "published"):
+            try:
+                published_at = datetime.strptime(entry.published, "%a, %d %b %Y %H:%M:%S %Z").strftime("%d/%m/%Y %H:%M")
+            except ValueError:
+                published_at = entry.published  # Caso o formato seja diferente
+
+        # Corrigir a descrição removendo HTML
+        raw_snippet = entry.summary
+        clean_snippet = BeautifulSoup(raw_snippet, "html.parser").get_text()
+
         result = {
             "title": entry.title,
             "link": entry.link,
-            "snippet": entry.summary,
+            "snippet": clean_snippet,  # Agora a descrição é apenas texto puro
             "source": entry.source.title if "source" in entry else "Google News",
-            "publishedAt": datetime(*entry.published_parsed[:6]).strftime("%d/%m/%Y %H:%M"),
+            "publishedAt": published_at,
         }
 
         # Evitar duplicatas no histórico
@@ -38,9 +51,9 @@ def display_news(articles):
     for article in articles:
         st.markdown(f"### {article['title']}")
         st.write(article["snippet"])
-        st.write(f"Fonte: {article['source']}")
-        st.write(f"[Leia mais]({article['link']})")
-        st.write("Publicado em:", article["publishedAt"])
+        st.write(f"📌 **Fonte:** {article['source']}")
+        st.write(f"🕒 **Publicado em:** {article['publishedAt']}")
+        st.write(f"🔗 [Leia mais]({article['link']})")
         st.markdown("---")
 
 # Sidebar para configurações
