@@ -1,8 +1,9 @@
 import streamlit as st
 import requests
 import feedparser
-from datetime import datetime
+from datetime import datetime, timedelta
 from bs4 import BeautifulSoup
+import re
 
 # Configuração da página no Streamlit
 st.set_page_config(page_title="Monitor de Reforma Ministerial", layout="wide")
@@ -13,6 +14,28 @@ GOOGLE_NEWS_RSS = "https://news.google.com/rss/search?q=reforma+ministerial&hl=p
 # Inicializar histórico se ainda não existir
 if "news_history" not in st.session_state:
     st.session_state.news_history = []
+
+# Função para converter datas relativas para absolutas
+def convert_relative_time(relative_time):
+    now = datetime.now()
+    
+    # Expressões regulares para detectar tempo relativo
+    match = re.search(r"(\d+)\s+min", relative_time)
+    if match:
+        return now - timedelta(minutes=int(match.group(1)))
+
+    match = re.search(r"(\d+)\s+hora", relative_time)
+    if match:
+        return now - timedelta(hours=int(match.group(1)))
+
+    match = re.search(r"(\d+)\s+dia", relative_time)
+    if match:
+        return now - timedelta(days=int(match.group(1)))
+
+    if "ontem" in relative_time.lower():
+        return now - timedelta(days=1)
+
+    return None  # Caso não seja uma data relativa
 
 # Função para buscar notícias do RSS do Google News
 def fetch_google_news_rss():
@@ -25,22 +48,19 @@ def fetch_google_news_rss():
         published_str = "Data não disponível"
 
         if hasattr(entry, "published"):
-            try:
-                # Tentar diferentes formatos de data
-                possible_formats = [
-                    "%a, %d %b %Y %H:%M:%S %Z",  # Formato padrão do Google News
-                    "%Y-%m-%dT%H:%M:%SZ",       # Formato ISO
-                    "%d/%m/%Y %H:%M",           # Formato já convertido
-                ]
-                for fmt in possible_formats:
-                    try:
-                        published_at = datetime.strptime(entry.published, fmt)
-                        published_str = published_at.strftime("%d/%m/%Y %H:%M")
-                        break
-                    except ValueError:
-                        continue
-            except Exception:
-                published_str = entry.published  # Se der erro, mantém o valor original
+            relative_date = entry.published
+            converted_date = convert_relative_time(relative_date)
+
+            if converted_date:
+                published_at = converted_date
+            else:
+                try:
+                    published_at = datetime.strptime(entry.published, "%a, %d %b %Y %H:%M:%S %Z")
+                except ValueError:
+                    published_str = entry.published  # Se não for possível converter, manter o original
+
+            if published_at:
+                published_str = published_at.strftime("%d/%m/%Y %H:%M")
 
         # Corrigir a descrição removendo HTML
         raw_snippet = entry.summary
@@ -49,12 +69,11 @@ def fetch_google_news_rss():
         result = {
             "title": entry.title,
             "link": entry.link,
-            "snippet": clean_snippet,  # Agora a descrição é apenas texto puro
+            "snippet": clean_snippet,
             "source": entry.source.title if "source" in entry else "Google News",
             "publishedAt": published_str,
         }
 
-        # Adiciona a chave apenas se a data for válida
         if published_at:
             result["publishedAt_datetime"] = published_at
 
@@ -62,7 +81,7 @@ def fetch_google_news_rss():
         if result["link"] not in [news["link"] for news in st.session_state.news_history]:
             st.session_state.news_history.append(result)
 
-    # Ordenar as notícias da mais recente para a mais antiga, ignorando as que não têm data
+    # Ordenar as notícias da mais recente para a mais antiga
     st.session_state.news_history.sort(
         key=lambda x: x.get("publishedAt_datetime", datetime.min),
         reverse=True
@@ -93,5 +112,4 @@ articles = fetch_google_news_rss()
 
 # Exibir histórico completo (já ordenado)
 display_news(articles)
-
 
