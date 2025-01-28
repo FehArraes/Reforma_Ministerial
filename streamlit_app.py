@@ -41,16 +41,19 @@ def fetch_google_news_rss():
             "snippet": clean_snippet,  # Agora a descrição é apenas texto puro
             "source": entry.source.title if "source" in entry else "Google News",
             "publishedAt": published_str,
-            "publishedAt_datetime": published_at,  # Salva a data como objeto datetime para ordenação
         }
+
+        # Adiciona a chave apenas se a data for válida
+        if published_at:
+            result["publishedAt_datetime"] = published_at
 
         # Evitar duplicatas no histórico
         if result["link"] not in [news["link"] for news in st.session_state.news_history]:
             st.session_state.news_history.append(result)
 
-    # Ordenar as notícias da mais recente para a mais antiga
+    # Ordenar as notícias da mais recente para a mais antiga, ignorando as que não têm data
     st.session_state.news_history.sort(
-        key=lambda x: x["publishedAt_datetime"] if x["publishedAt_datetime"] else datetime.min,
+        key=lambda x: x.get("publishedAt_datetime", datetime.min),
         reverse=True
     )
 
@@ -79,9 +82,6 @@ articles = fetch_google_news_rss()
 
 # Exibir histórico completo (já ordenado)
 display_news(articles)
-
-
-
 
 
 
