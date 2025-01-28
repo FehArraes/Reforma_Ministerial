@@ -6,16 +6,16 @@ from bs4 import BeautifulSoup
 import re
 import pytz
 
-# Fuso horário do Brasil
+# 🔹 Fuso horário do Brasil
 BRASIL_TZ = pytz.timezone("America/Sao_Paulo")
 
-# Configuração da página no Streamlit
+# 🔹 Configuração da página no Streamlit
 st.set_page_config(page_title="Monitor de Reforma Ministerial", layout="wide")
 
 # 🔍 URL do RSS do Google Notícias para "Reforma Ministerial"
 GOOGLE_NEWS_RSS = "https://news.google.com/rss/search?q=reforma+ministerial&hl=pt-BR&gl=BR&ceid=BR:pt-419"
 
-# Inicializar histórico se ainda não existir
+# 🔹 Inicializar histórico se ainda não existir
 if "news_history" not in st.session_state:
     st.session_state.news_history = []
 
@@ -40,37 +40,19 @@ def convert_relative_time(relative_time):
 
     return None
 
-# 🔹 Buscar a data real do site da notícia original
-def fetch_real_publication_date(news_url):
-    try:
-        response = requests.get(news_url, timeout=5)
-        if response.status_code == 200:
-            soup = BeautifulSoup(response.text, "html.parser")
+# 🔹 Classificar o tempo relativo igual ao Google Notícias
+def format_relative_time(published_at):
+    now = datetime.now(BRASIL_TZ)
+    diff = now - published_at
 
-            date_patterns = [
-                {"tag": "time", "attr": "datetime"},
-                {"tag": "meta", "attr": "content", "name": "article:published_time"},
-                {"tag": "meta", "attr": "content", "name": "datePublished"},
-                {"tag": "span", "class": "publish-date"},
-                {"tag": "div", "class": "date"},
-            ]
-
-            for pattern in date_patterns:
-                if "name" in pattern:
-                    date_element = soup.find(pattern["tag"], {"name": pattern["name"]})
-                else:
-                    date_element = soup.find(pattern["tag"], class_=pattern.get("class"))
-
-                if date_element and date_element.has_attr(pattern["attr"]):
-                    raw_date = date_element[pattern["attr"]]
-                    try:
-                        return datetime.strptime(raw_date, "%Y-%m-%dT%H:%M:%S").replace(tzinfo=pytz.utc).astimezone(BRASIL_TZ)
-                    except ValueError:
-                        continue
-
-        return None
-    except Exception:
-        return None
+    if diff < timedelta(minutes=60):
+        return f"{int(diff.total_seconds() / 60)} minutos atrás"
+    elif diff < timedelta(hours=24):
+        return f"{int(diff.total_seconds() / 3600)} horas atrás"
+    elif diff < timedelta(days=2):
+        return "Ontem"
+    else:
+        return f"{published_at.strftime('%d de %B de %Y')}"
 
 # 🔹 Buscar notícias do RSS do Google News
 def fetch_google_news_rss():
@@ -79,7 +61,7 @@ def fetch_google_news_rss():
 
     for entry in feed.entries:
         published_at = None
-        published_str = "Data não disponível"
+        relative_str = "Data não disponível"
 
         if hasattr(entry, "published"):
             relative_date = entry.published
@@ -91,15 +73,10 @@ def fetch_google_news_rss():
                 try:
                     published_at = datetime.strptime(entry.published, "%a, %d %b %Y %H:%M:%S %Z").replace(tzinfo=pytz.utc).astimezone(BRASIL_TZ)
                 except ValueError:
-                    published_str = entry.published
+                    relative_str = entry.published
 
             if published_at:
-                published_str = published_at.strftime("%d/%m/%Y %H:%M")
-
-        real_date = fetch_real_publication_date(entry.link)
-        if real_date:
-            published_at = real_date
-            published_str = real_date.strftime("%d/%m/%Y %H:%M")
+                relative_str = format_relative_time(published_at)
 
         raw_snippet = entry.summary
         clean_snippet = BeautifulSoup(raw_snippet, "html.parser").get_text()
@@ -109,7 +86,7 @@ def fetch_google_news_rss():
             "link": entry.link,
             "snippet": clean_snippet,
             "source": entry.source.title if "source" in entry else "Google News",
-            "publishedAt": published_str,
+            "publishedAt_relative": relative_str,  # 📌 Agora usando tempo relativo
         }
 
         if published_at:
@@ -127,7 +104,7 @@ def fetch_google_news_rss():
         if "publishedAt_datetime" not in news:
             news["publishedAt_datetime"] = datetime.min
 
-    # ✅ Correção: Ordenar corretamente evitando `NoneType` error
+    # ✅ Correção: Ordenar corretamente os mais recentes primeiro
     try:
         st.session_state.news_history.sort(
             key=lambda x: x["publishedAt_datetime"],
@@ -144,7 +121,7 @@ def display_news(articles):
         st.markdown(f"### {article['title']}")
         st.write(f"📰 {article['snippet']}")
         st.write(f"📌 **Fonte:** {article['source']}")
-        st.write(f"🕒 **Publicado em:** {article['publishedAt']}")
+        st.write(f"🕒 **Publicado:** {article['publishedAt_relative']}")
         st.write(f"🔗 [Leia mais]({article['link']})")
         st.markdown("---")
 
@@ -161,6 +138,5 @@ articles = fetch_google_news_rss()
 
 # 🔹 Exibir histórico completo (já ordenado)
 display_news(articles)
-
 
 
