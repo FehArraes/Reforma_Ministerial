@@ -4,7 +4,7 @@ import feedparser
 from datetime import datetime, timedelta
 from bs4 import BeautifulSoup
 import re
-import pytz  # Para ajuste de fuso horário
+import pytz
 
 # Fuso horário do Brasil
 BRASIL_TZ = pytz.timezone("America/Sao_Paulo")
@@ -23,7 +23,6 @@ if "news_history" not in st.session_state:
 def convert_relative_time(relative_time):
     now = datetime.now(BRASIL_TZ)
 
-    # Identificar "minutos atrás", "horas atrás", etc.
     match = re.search(r"(\d+)\s+min", relative_time)
     if match:
         return now - timedelta(minutes=int(match.group(1)))
@@ -39,18 +38,17 @@ def convert_relative_time(relative_time):
     if "ontem" in relative_time.lower():
         return now - timedelta(days=1)
 
-    return None  # Caso não seja uma data relativa
+    return None
 
-# 🔹 Função para buscar a data diretamente do site da notícia original
+# 🔹 Buscar a data real do site da notícia original
 def fetch_real_publication_date(news_url):
     try:
         response = requests.get(news_url, timeout=5)
         if response.status_code == 200:
             soup = BeautifulSoup(response.text, "html.parser")
 
-            # Buscar elementos comuns que contêm a data
             date_patterns = [
-                {"tag": "time", "attr": "datetime"},  # Padrão ISO
+                {"tag": "time", "attr": "datetime"},
                 {"tag": "meta", "attr": "content", "name": "article:published_time"},
                 {"tag": "meta", "attr": "content", "name": "datePublished"},
                 {"tag": "span", "class": "publish-date"},
@@ -66,14 +64,13 @@ def fetch_real_publication_date(news_url):
                 if date_element and date_element.has_attr(pattern["attr"]):
                     raw_date = date_element[pattern["attr"]]
                     try:
-                        # Converter para datetime
                         return datetime.strptime(raw_date, "%Y-%m-%dT%H:%M:%S").replace(tzinfo=pytz.utc).astimezone(BRASIL_TZ)
                     except ValueError:
-                        continue  # Se falhar, tenta outro formato
+                        continue
 
         return None
     except Exception:
-        return None  # Se der erro ao acessar, retorna None
+        return None
 
 # 🔹 Buscar notícias do RSS do Google News
 def fetch_google_news_rss():
@@ -94,18 +91,16 @@ def fetch_google_news_rss():
                 try:
                     published_at = datetime.strptime(entry.published, "%a, %d %b %Y %H:%M:%S %Z").replace(tzinfo=pytz.utc).astimezone(BRASIL_TZ)
                 except ValueError:
-                    published_str = entry.published  # Se não for possível converter, mantém o original
+                    published_str = entry.published
 
             if published_at:
                 published_str = published_at.strftime("%d/%m/%Y %H:%M")
 
-        # 🔍 Buscar a data correta no site original
         real_date = fetch_real_publication_date(entry.link)
         if real_date:
             published_at = real_date
             published_str = real_date.strftime("%d/%m/%Y %H:%M")
 
-        # 📌 Corrigir a descrição removendo HTML
         raw_snippet = entry.summary
         clean_snippet = BeautifulSoup(raw_snippet, "html.parser").get_text()
 
@@ -120,15 +115,26 @@ def fetch_google_news_rss():
         if published_at:
             result["publishedAt_datetime"] = published_at
 
-        # Evitar duplicatas no histórico
         if result["link"] not in [news["link"] for news in st.session_state.news_history]:
             st.session_state.news_history.append(result)
 
-    # Ordenar as notícias da mais recente para a mais antiga
-    st.session_state.news_history.sort(
-        key=lambda x: x.get("publishedAt_datetime", datetime.min),
-        reverse=True
-    )
+    # ✅ Correção: Garantir que `news_history` é uma lista antes de ordenar
+    if not isinstance(st.session_state.news_history, list):
+        st.session_state.news_history = []
+
+    # ✅ Correção: Garantir que cada item tem `publishedAt_datetime`
+    for news in st.session_state.news_history:
+        if "publishedAt_datetime" not in news:
+            news["publishedAt_datetime"] = datetime.min
+
+    # ✅ Correção: Ordenar corretamente evitando `NoneType` error
+    try:
+        st.session_state.news_history.sort(
+            key=lambda x: x["publishedAt_datetime"],
+            reverse=True
+        )
+    except Exception as e:
+        st.error(f"Erro ao ordenar as notícias: {e}")
 
     return st.session_state.news_history
 
@@ -155,5 +161,6 @@ articles = fetch_google_news_rss()
 
 # 🔹 Exibir histórico completo (já ordenado)
 display_news(articles)
+
 
 
